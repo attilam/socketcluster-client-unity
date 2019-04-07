@@ -7,6 +7,7 @@ using LitJson;
 using SuperSocket.ClientEngine;
 using SuperSocket.ClientEngine.Proxy;
 using WebSocket4Net;
+using UnityEngine;
 
 namespace ScClient
 {
@@ -137,87 +138,92 @@ namespace ScClient
 
         private void OnWebsocketMessageReceived(object sender, MessageReceivedEventArgs e)
         {
-            if (e.Message == "#1")
+            try
             {
-                _socket.Send("#2");
-            }
-            else
-            {
-//                Console.WriteLine("Message received :: "+e.Message);
-
-                var dict = JsonMapper.ToObject(e.Message);
-
-                var dataobject = dict.ContainsKey("data") ? dict["data"] : null;
-                var rid = dict.ContainsKey("rid") ? (int?)dict["rid"] : null;
-                var cid = dict.ContainsKey("cid") ? (int?)dict["cid"] : null;
-                var Event = dict.ContainsKey("event") ? (string)dict["event"] : null;
-                var errorobject = dict.ContainsKey("error") ? dict["error"] : null;
-
-                //                Console.WriteLine("data is "+e.Message);
-                //                Console.WriteLine("data is "+dataobject +" rid is "+rid+" cid is "+cid+" event is "+Event);
-
-                switch (Parser.Parse(dataobject, rid, cid, Event))
+                if (e.Message == "#1")
                 {
-                    case Parser.MessageType.Isauthenticated:
-//                        Console.WriteLine("IS authenticated got called");
-                        id = (string) dataobject["id"];
-                        _listener.OnAuthentication(this, (bool) ((JsonData) dataobject)["isAuthenticated"]);
-                        SubscribeChannels();
-                        break;
-                    case Parser.MessageType.Publish:
-                        HandlePublish((string) dataobject["channel"],
-                            dataobject["data"]);
-//                        Console.WriteLine("Publish got called");
-                        break;
-                    case Parser.MessageType.Removetoken:
-                        SetAuthToken(null);
-//                        Console.WriteLine("Removetoken got called");
-                        break;
-                    case Parser.MessageType.Settoken:
-                        _listener.OnSetAuthToken((string) dataobject["token"], this);
-//                        Console.WriteLine("Set token got called");
-                        break;
-                    case Parser.MessageType.Event:
+                    _socket.Send("#2");
+                }
+                else
+                {
+    //                Console.WriteLine("Message received :: "+e.Message);
 
-                        if (HasEventAck(Event))
-                        {
-                            HandleEmitAck(Event, dataobject, Ack(cid));
-                        }
-                        else
-                        {
-                            HandleEmit(Event, dataobject);
-                        }
+                    var dict = JsonMapper.ToObject(e.Message);
 
-                        break;
-                    case Parser.MessageType.Ackreceive:
+                    var dataobject = dict.ContainsKey("data") ? dict["data"] : null;
+                    var rid = dict.ContainsKey("rid") ? (int?)dict["rid"] : null;
+                    var cid = dict.ContainsKey("cid") ? (int?)dict["cid"] : null;
+                    var Event = dict.ContainsKey("event") ? (string)dict["event"] : null;
+                    var errorobject = dict.ContainsKey("error") ? dict["error"] : null;
 
-//                        Console.WriteLine("Ack receive got called");
-                        if (acks.ContainsKey(rid))
-                        {
-                            var Object = acks[rid];
-                            acks.Remove(rid);
-                            if (Object != null)
+                    //                Console.WriteLine("data is "+e.Message);
+                    //                Console.WriteLine("data is "+dataobject +" rid is "+rid+" cid is "+cid+" event is "+Event);
+
+                    switch (Parser.Parse(dataobject, rid, cid, Event))
+                    {
+                        case Parser.MessageType.Isauthenticated:
+    //                        Console.WriteLine("IS authenticated got called");
+                            id = (string) dataobject["id"];
+                            _listener.OnAuthentication(this, (bool) ((JsonData) dataobject)["isAuthenticated"]);
+                            SubscribeChannels();
+                            break;
+                        case Parser.MessageType.Publish:
+                            HandlePublish((string) dataobject["channel"],
+                                dataobject["data"]);
+    //                        Console.WriteLine("Publish got called");
+                            break;
+                        case Parser.MessageType.Removetoken:
+                            SetAuthToken(null);
+    //                        Console.WriteLine("Removetoken got called");
+                            break;
+                        case Parser.MessageType.Settoken:
+                            _listener.OnSetAuthToken((string) dataobject["token"], this);
+    //                        Console.WriteLine("Set token got called");
+                            break;
+                        case Parser.MessageType.Event:
+
+                            if (HasEventAck(Event))
                             {
-                                var fn = (Ackcall) Object[1];
-                                if (fn != null)
+                                HandleEmitAck(Event, dataobject, Ack(cid));
+                            }
+                            else
+                            {
+                                HandleEmit(Event, dataobject);
+                            }
+
+                            break;
+                        case Parser.MessageType.Ackreceive:
+
+    //                        Console.WriteLine("Ack receive got called");
+                            if (acks.ContainsKey(rid))
+                            {
+                                var Object = acks[rid];
+                                acks.Remove(rid);
+                                if (Object != null)
                                 {
-                                    fn((string) Object[0], errorobject,
-                                        dataobject);
-                                }
-                                else
-                                {
-                                    Console.WriteLine("Ack function is null");
+                                    var fn = (Ackcall) Object[1];
+                                    if (fn != null)
+                                    {
+                                        fn((string) Object[0], errorobject,
+                                            dataobject);
+                                    }
+                                    else
+                                    {
+                                        Console.WriteLine("Ack function is null");
+                                    }
                                 }
                             }
-                        }
 
-                        break;
-                    default:
-                        throw new ArgumentOutOfRangeException();
+                            break;
+                        default:
+                            throw new ArgumentOutOfRangeException();
+                    }
                 }
             }
-
-//            _socket.Send("Hello World!");
+            catch (Exception exception)
+            {
+                Debug.LogException(exception);
+            }
         }
 
 
