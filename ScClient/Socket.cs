@@ -10,7 +10,7 @@ using WebSocket4Net;
 
 namespace ScClient
 {
-    public class Socket : Emitter
+    public class Socket : Emitter, IDisposable
     {
         public WebSocket _socket;
         public string id;
@@ -20,6 +20,7 @@ namespace ScClient
         private IReconnectStrategy _strategy;
         private Dictionary<long?, object[]> acks;
         private IBasicListener _listener;
+        private Thread reconnectionThread;
 
         public Socket(string url)
         {
@@ -30,12 +31,23 @@ namespace ScClient
             acks = new Dictionary<long?, object[]>();
 
             // hook in all the event handling
-            _socket.Opened += new EventHandler(OnWebsocketConnected);
-            _socket.Error += new EventHandler<ErrorEventArgs>(OnWebsocketError);
-            _socket.Closed += new EventHandler(OnWebsocketClosed);
-            _socket.MessageReceived += new EventHandler<MessageReceivedEventArgs>(OnWebsocketMessageReceived);
-            _socket.DataReceived += new EventHandler<DataReceivedEventArgs>(OnWebsocketDataReceived);
+            _socket.Opened += OnWebsocketConnected;
+            _socket.Error += OnWebsocketError;
+            _socket.Closed += OnWebsocketClosed;
+            _socket.MessageReceived += OnWebsocketMessageReceived;
+            _socket.DataReceived += OnWebsocketDataReceived;
         }
+
+        public void Dispose()
+		{
+            _socket.Opened -= OnWebsocketConnected;
+            _socket.Error -= OnWebsocketError;
+            _socket.Closed -= OnWebsocketClosed;
+            _socket.MessageReceived -= OnWebsocketMessageReceived;
+            _socket.DataReceived -= OnWebsocketDataReceived;
+			_socket.Dispose();
+            _socket = null;
+		}
 
         public void SetReconnectStrategy(IReconnectStrategy strategy)
         {
@@ -115,9 +127,11 @@ namespace ScClient
         private void OnWebsocketClosed(object sender, EventArgs e)
         {
             _listener.OnDisconnected(this);
-            if (!_strategy.AreAttemptsComplete())
+            if (_strategy != null && !_strategy.AreAttemptsComplete())
             {
-                new Thread(Reconnect).Start();
+                _strategy.ProcessValues();
+                reconnectionThread = new Thread(Reconnect);
+                reconnectionThread.Start(_strategy.GetReconnectInterval());
             }
         }
 
@@ -217,10 +231,14 @@ namespace ScClient
             _socket.Open();
         }
 
-        private void Reconnect()
+        private void Reconnect(object reconnectIntervalObject)
         {
-            _strategy.ProcessValues();
-            Thread.Sleep(_strategy.GetReconnectInterval());
+            int reconnectInterval = (int)reconnectIntervalObject;
+            Thread.Sleep(reconnectInterval);
+            if (_socket == null)
+            {
+                return;
+            }
             Connect();
         }
 
@@ -349,7 +367,7 @@ namespace ScClient
             return Object;
         }
 
-        public class Channel
+		public class Channel
         {
             private readonly string _channelname;
             private readonly Socket _socket;
