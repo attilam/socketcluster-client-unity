@@ -97,7 +97,7 @@ namespace ScClient
             _authToken = token;
         }
 
-        public void SetListerner(IBasicListener listener)
+        public void SetListener(IBasicListener listener)
         {
             _listener = listener;
         }

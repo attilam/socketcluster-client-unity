@@ -42,7 +42,7 @@ namespace ScClient.Examples
         public static void Main(string[] args)
         {
             var socket = new Socket("ws://localhost:8000/socketcluster/");
-            socket.SetListerner(new Program());
+            socket.SetListener(new Program());
             socket.SetReconnectStrategy(new ReconnectStrategy().SetMaxAttempts(10));
             socket.Connect();
 
